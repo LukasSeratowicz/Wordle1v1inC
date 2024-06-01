@@ -25,6 +25,21 @@
 #define GREEN "\x1b[32m"
 #define YELLOW "\x1b[33m"
 #define RESET "\x1b[0m"
+#define RED "\x1b[31m"
+#define BLUE "\x1b[34m"
+#define MAGENTA "\x1b[35m"
+#define CYAN "\x1b[36m"
+#define WHITE "\x1b[37m"
+#define BLACK "\x1b[30m"
+#define BRIGHT_RED "\x1b[91m"
+#define BRIGHT_GREEN "\x1b[92m"
+#define BRIGHT_YELLOW "\x1b[93m"
+#define BRIGHT_BLUE "\x1b[94m"
+#define BRIGHT_MAGENTA "\x1b[95m"
+#define BRIGHT_CYAN "\x1b[96m"
+#define BRIGHT_WHITE "\x1b[97m"
+
+#define MAX_WORDS 20000
 
 char **words;
 int wordCount;
@@ -46,6 +61,9 @@ int current_guess_server = 0;
 bool did_server_win = false;
 
 char server_announcement[MAXLINE / 2];
+
+char read_words_server[MAX_WORDS][WORD_LENGTH + 1];
+int word_count_server = 0;
 
 int receiveMessageServer(int sockfd, char recvline[MAXLINE + 1]) {
     int n;
@@ -102,7 +120,7 @@ void sendMessageServer(int sockfd, char message[MAXLINE + 1]) {
 void printBoardServer() {
     printf("+===============+\n");
     //printf(" %s vs %s\n",nick,enemy_nick);
-    printf("%s vs %s\n",server_name,server_opponent);
+    printf( BLUE "%s" RESET " vs " RED "%s" RESET "\n",server_name,server_opponent);
     printf("+===============+\n");
     for (int i = 0; i < MAX_GUESSES; i++) {
         if (guess_history[i][0] == '\0') {
@@ -119,9 +137,9 @@ void printBoardServer() {
             }
             printf("||");
             if((i)%2==0){
-                printf(" - %s",server_name);
+                printf(" - " BLUE "%s" RESET ,server_name);
             }else{
-                printf(" - %s",server_opponent);
+                printf(" - " RED "%s" RESET ,server_opponent);
             }
             printf("\n");
         }
@@ -146,9 +164,10 @@ bool checkGuessServer(char* guess) {
     }
 }
 
-bool isInWordListServer(char *word, char **words, int wordCount) {
+bool isInWordListServer(char word[WORD_LENGTH+1], char **words, int wordCount) {
+    word[strcspn(word, "\r\n")] = 0;
     for (int i = 0; i < wordCount; i++) {
-        if (strcmp(word, words[i]) == 0) {
+        if (strncmp(word, words[i], WORD_LENGTH) == 0) {
             return true;
         }
     }
@@ -160,8 +179,35 @@ void clearInputBufferServer() {
     while ((c = getchar()) != '\n' && c != EOF) { }
 }
 
-int startServer(char **read_words, int word_count)
+void initializeWordListServer(char **words, int count) {
+    word_count_server = count < MAX_WORDS ? count : MAX_WORDS;
+    for (int i = 0; i < word_count_server ; i++) {
+        strncpy(read_words_server [i], words[i], WORD_LENGTH);
+        read_words_server[i][WORD_LENGTH] = '\0';
+    }
+}
+bool isWordInGlobalListServer(char word[]) {
+    for (int i = 0; i < word_count_server; i++) {
+        if (strncmp(word, read_words_server[i], WORD_LENGTH) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void rollWordToGuess() {
+    if (word_count_server > 0) {
+        int randomIndex = rand() % word_count_server;
+        strcpy(word_to_guess, read_words_server[randomIndex]);
+    } else {
+        printf("[ERROR] No words available to roll\n");
+        exit(1);
+    }
+}
+
+int startServer()
 {
+
     int                 listenfd, connfd;
     socklen_t           len;
     char                buff[MAXLINE], str[INET_ADDRSTRLEN+1];
@@ -209,6 +255,7 @@ int startServer(char **read_words, int word_count)
             struct sockaddr_in sa;
             if (inet_pton(AF_INET, ip_address, &(sa.sin_addr)) != 1) {
                 printf("Invalid IP address. Please try again.\n");
+                clearInputBufferServer();
             } else {
                 break;
             }
@@ -233,6 +280,7 @@ int startServer(char **read_words, int word_count)
             port = atoi(port_str);
             if (port <= 0 || port > 65535) {
                 printf("Invalid port number. Please enter a number between 1 and 65535.\n");
+                clearInputBufferServer();
             } else {
                 break;
             }
@@ -296,11 +344,13 @@ int startServer(char **read_words, int word_count)
 
 
     // Roll the word to guess, send it to client, and wait for response
-    words = read_words;
-    wordCount = word_count;
+    //words = read_words;
+    //wordCount = word_count;
     srand(time(NULL)); // Seed the random number generator
-    int randomIndex = rand() % wordCount;
-    strcpy(word_to_guess, read_words[randomIndex]);
+    //int randomIndex = rand() % wordCount;
+    //strcpy(word_to_guess, read_words[randomIndex]);
+    //strcpy(word_to_guess, read_words_server[randomIndex]);
+    rollWordToGuess();
 
     printf("WORD TO GUESS IS %s\n",word_to_guess);
 
@@ -340,31 +390,47 @@ int startServer(char **read_words, int word_count)
             size_t len = strlen(my_guess);
             if (len > 0 && my_guess[len - 1] == '\n') {
                 my_guess[len - 1] = '\0';
+                len--; 
             }
 
-            if (len == WORD_LENGTH) {
-                if (!isInWordListServer(my_guess, words, wordCount)) {
-                    printf("The guessed word is not in the word list.\n");
-                    strcpy(server_announcement, "The guessed word is not in the word list.\n");
-                    continue;
-                } else {
-                    //send it
-                    strcpy(initialMessage, "guess|");
-                    strcat(initialMessage, my_guess);
-                    strcat(initialMessage, "\n"); 
-                    sendMessageServer(connfd, initialMessage);
-                    //check if correct
-                    bool is_correct = checkGuessServer(my_guess);
-                    if(is_correct){
-                        did_server_win=true;
-                        break;
-                    }
-                }
-            } else {
+            //printf("%d vs %d",len,WORD_LENGTH);
+            //printf("Debug: len = %zu, expected = %d\n", len, WORD_LENGTH);
+            //sleep(2);
+
+            if (len == 0) {
+                strcpy(server_announcement, "");
+                continue;
+            }
+
+            if (len != WORD_LENGTH) {
                 printf("Invalid word length. Please try again.\n");
                 strcpy(server_announcement, "Invalid word length. Please try again.\n");
                 continue;
             }
+
+            // if (!isInWordListServer(my_guess, words, wordCount)) {
+            //     printf("The guessed word is not in the word list.\n");
+            //     strcpy(server_announcement, "The guessed word is not in the word list.\n");
+            //     continue;
+            // }
+
+        if (!isWordInGlobalListServer(my_guess)) {
+            printf("The guessed word is not in the word list.\n");
+            strcpy(server_announcement, "The guessed word is not in the word list.\n");
+            continue;
+        }
+
+            strcpy(initialMessage, "guess|");
+            strcat(initialMessage, my_guess);
+            strcat(initialMessage, "\n");
+            sendMessageServer(connfd, initialMessage);
+
+            bool is_correct = checkGuessServer(my_guess);
+            if (is_correct) {
+                did_server_win = true;
+                break;
+            }
+
         } else {
             printf("Error reading input. Please try again.\n");
             strcpy(server_announcement, "Error reading input. Please try again.\n");
@@ -394,9 +460,9 @@ int startServer(char **read_words, int word_count)
     printBoardServer();
     printf("GAME IS OVER\n");
     if(did_server_win){
-        printf("CONGRATULATIONS YOU WON!!!\n");
+        printf( GREEN "CONGRATULATIONS YOU WON!!!\n" RESET);
     }else{
-        printf("better luck next time :)\n");
+        printf( RED "better luck next time :)\n" RESET);
     }
 
     close(connfd);

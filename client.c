@@ -19,6 +19,19 @@
 #define GREEN "\x1b[32m"
 #define YELLOW "\x1b[33m"
 #define RESET "\x1b[0m"
+#define RED "\x1b[31m"
+#define BLUE "\x1b[34m"
+#define MAGENTA "\x1b[35m"
+#define CYAN "\x1b[36m"
+#define WHITE "\x1b[37m"
+#define BLACK "\x1b[30m"
+#define BRIGHT_RED "\x1b[91m"
+#define BRIGHT_GREEN "\x1b[92m"
+#define BRIGHT_YELLOW "\x1b[93m"
+#define BRIGHT_BLUE "\x1b[94m"
+#define BRIGHT_MAGENTA "\x1b[95m"
+#define BRIGHT_CYAN "\x1b[96m"
+#define BRIGHT_WHITE "\x1b[97m"
 
 char recv_send_type[MAXLINE / 2];
 char recv_send_message[MAXLINE / 2];
@@ -92,7 +105,7 @@ void sendMessage(int sockfd, char message[MAXLINE + 1]) {
 void printBoardClient() {
     printf("+===============+\n");
     //printf(" %s vs %s\n",nick,enemy_nick);
-    printf("%s vs %s\n",client_name,client_opponent);
+    printf( BLUE "%s" RESET " vs " RED "%s" RESET "\n",client_name,client_opponent);
     printf("+===============+\n");
     for (int i = 0; i < MAX_GUESSES; i++) {
         if (guess_history[i][0] == '\0') {
@@ -109,14 +122,15 @@ void printBoardClient() {
             }
             printf("||");
             if((i+1)%2==0){
-                printf(" - %s",client_name);
+                printf(" - " BLUE "%s" RESET ,client_name);
             }else{
-                printf(" - %s",client_opponent);
+                printf(" - " RED "%s" RESET ,client_opponent);
             }
             printf("\n");
         }
     }
     printf("+===============+\n");
+    printf("%s",client_announcement);
 }
 
 bool checkGuessClient(char* guess) {
@@ -135,9 +149,10 @@ bool checkGuessClient(char* guess) {
     }
 }
 
-bool isInWordListClient(char *word, char **words, int wordCount) {
+bool isInWordListClient(char word[], char **words, int wordCount) {
+    word[strcspn(word, "\r\n")] = 0;
     for (int i = 0; i < wordCount; i++) {
-        if (strcmp(word, words[i]) == 0) {
+        if (strncmp(word, words[i], WORD_LENGTH) == 0 && strlen(words[i]) == WORD_LENGTH) {
             return true;
         }
     }
@@ -220,6 +235,7 @@ int startClient(char **words, int wordCount)
             port = atoi(port_str);
             if (port <= 0 || port > 65535) {
                 printf("Invalid port number. Please enter a number between 1 and 65535.\n");
+                clearInputBufferClient();
             } else {
                 break;
             }
@@ -302,7 +318,12 @@ int startClient(char **words, int wordCount)
     if(is_correct){
         system("clear");
         printBoardClient();
-        printf("GAME OVER\n");
+        printf("GAME IS OVER\n");
+        if(did_client_win){
+            printf( GREEN "CONGRATULATIONS YOU WON!!!\n" RESET);
+        }else{
+            printf( RED "better luck next time :)\n" RESET);
+        }
         exit(0);
     }
 
@@ -315,31 +336,37 @@ int startClient(char **words, int wordCount)
             size_t len = strlen(my_guess);
             if (len > 0 && my_guess[len - 1] == '\n') {
                 my_guess[len - 1] = '\0';
+                len--;
             }
 
-            if (len == WORD_LENGTH) {
-                if (!isInWordListClient(my_guess, words, wordCount)) {
-                    printf("The guessed word is not in the word list.\n");
-                    strcpy(client_announcement, "The guessed word is not in the word list.\n");
-                    continue;
-                } else {
-                    //send it
-                    strcpy(message, "guess|");
-                    strcat(message, my_guess);
-                    strcat(message, "\n"); 
-                    sendMessage(sockfd, message);
-                    //check if correct
-                    bool is_correct = checkGuessClient(my_guess);
-                    if(is_correct){
-                        did_client_win = true;
-                        break;
-                    }
-                }
-            } else {
-                printf("Invalid word. Please try again.\n");
+            if (len == 0) {
+                strcpy(client_announcement, "");
+                continue;
+            }
+
+            if (len != WORD_LENGTH) {
+                printf("Invalid word length. Please try again.\n");
                 strcpy(client_announcement, "Invalid word length. Please try again.\n");
                 continue;
             }
+
+            // if (!isInWordListClient(my_guess, words, wordCount)) {
+            //     printf("The guessed word is not in the word list.\n");
+            //     strcpy(client_announcement, "The guessed word is not in the word list.\n");
+            //     continue;
+            // }
+
+            strcpy(message, "guess|");
+            strcat(message, my_guess);
+            strcat(message, "\n");
+            sendMessage(sockfd, message);
+
+            bool is_correct = checkGuessClient(my_guess);
+            if (is_correct) {
+                did_client_win = true;
+                break;
+            }
+
         } else {
             printf("Error reading input. Please try again.\n");
             strcpy(client_announcement, "Error reading input. Please try again.\n");
@@ -371,9 +398,9 @@ int startClient(char **words, int wordCount)
     printBoardClient();
     printf("GAME IS OVER\n");
     if(did_client_win){
-        printf("CONGRATULATIONS YOU WON!!!\n");
+        printf( GREEN "CONGRATULATIONS YOU WON!!!\n" RESET);
     }else{
-        printf("better luck next time :)\n");
+        printf( RED "better luck next time :)\n" RESET);
     }
 
     exit(0);

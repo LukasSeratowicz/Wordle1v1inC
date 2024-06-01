@@ -85,7 +85,8 @@ int main() {
     if (in == 1) {
         startClient(words, wordCount);
     } else if (in == 2) {
-        startServer(words, wordCount);
+        initializeWordListServer(words, wordCount);
+        startServer();
     }
 
     //executeGameLogic("Main");
