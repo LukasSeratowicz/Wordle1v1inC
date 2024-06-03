@@ -83,6 +83,7 @@ int main() {
     
     //testGameLogic("Main");
     if (in == 1) {
+        initializeWordListClient(words, wordCount);
         startClient(words, wordCount);
     } else if (in == 2) {
         initializeWordListServer(words, wordCount);

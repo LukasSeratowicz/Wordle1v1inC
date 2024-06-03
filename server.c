@@ -41,8 +41,8 @@
 
 #define MAX_WORDS 20000
 
-char **words;
-int wordCount;
+//char **words;
+//int wordCount;
 
 char word_to_guess[WORD_LENGTH+1];
 char enemy_word_to_guess[WORD_LENGTH+1];
@@ -145,7 +145,7 @@ void printBoardServer() {
         }
     }
     printf("+===============+\n");
-    printf("%s",server_announcement);
+    printf("%s\n",server_announcement);
 }
 
 bool checkGuessServer(char* guess) {
@@ -162,16 +162,6 @@ bool checkGuessServer(char* guess) {
         }
         return false;
     }
-}
-
-bool isInWordListServer(char word[WORD_LENGTH+1], char **words, int wordCount) {
-    word[strcspn(word, "\r\n")] = 0;
-    for (int i = 0; i < wordCount; i++) {
-        if (strncmp(word, words[i], WORD_LENGTH) == 0) {
-            return true;
-        }
-    }
-    return false;
 }
 
 void clearInputBufferServer() {
@@ -331,7 +321,7 @@ int startServer()
     fflush(stdout);
     
 
-    system("clear");
+    //system("clear");
     // Client connected, send him his name and retrieve his
     strcpy(initialMessage, "name|");
     strcat(initialMessage, server_name);
@@ -379,13 +369,16 @@ int startServer()
     printf("my name: %s\n",server_name);
     printf("their name: %s\n",server_opponent);
 
-    strcpy(server_announcement, "");
+    server_announcement[0] = '\0';
+    strncat(server_announcement, " ", MAXLINE/2 -1);
+    //printf("server_announcement: %s\n",server_announcement);
     //everything set, lets start the game!
     while (1) {
         system("clear");
         printBoardServer();
         printf("Enter your guess (max %d characters): ", WORD_LENGTH);
-        if (fgets(my_guess, sizeof(my_guess), stdin) != NULL) {
+        if (scanf("%s", my_guess)) {
+        //if (fgets(my_guess, sizeof(my_guess), stdin) != NULL) {
             
             size_t len = strlen(my_guess);
             if (len > 0 && my_guess[len - 1] == '\n') {
@@ -393,32 +386,23 @@ int startServer()
                 len--; 
             }
 
-            //printf("%d vs %d",len,WORD_LENGTH);
-            //printf("Debug: len = %zu, expected = %d\n", len, WORD_LENGTH);
-            //sleep(2);
-
             if (len == 0) {
-                strcpy(server_announcement, "");
                 continue;
             }
 
             if (len != WORD_LENGTH) {
                 printf("Invalid word length. Please try again.\n");
-                strcpy(server_announcement, "Invalid word length. Please try again.\n");
+                server_announcement[0] = '\0'; 
+                strncat(server_announcement, "Invalid word length. Please try again.", MAXLINE/2 -1);
                 continue;
             }
 
-            // if (!isInWordListServer(my_guess, words, wordCount)) {
-            //     printf("The guessed word is not in the word list.\n");
-            //     strcpy(server_announcement, "The guessed word is not in the word list.\n");
-            //     continue;
-            // }
-
-        if (!isWordInGlobalListServer(my_guess)) {
-            printf("The guessed word is not in the word list.\n");
-            strcpy(server_announcement, "The guessed word is not in the word list.\n");
-            continue;
-        }
+            if (!isWordInGlobalListServer(my_guess)) {
+                printf("The guessed word is not in the word list.\n");
+                server_announcement[0] = '\0'; 
+                strncat(server_announcement, "The guessed word is not in the word list.", MAXLINE/2 -1);
+                continue;
+            }
 
             strcpy(initialMessage, "guess|");
             strcat(initialMessage, my_guess);
@@ -433,12 +417,15 @@ int startServer()
 
         } else {
             printf("Error reading input. Please try again.\n");
-            strcpy(server_announcement, "Error reading input. Please try again.\n");
+            server_announcement[0] = '\0'; 
+            strncat(server_announcement, "Error reading input. Please try again.", MAXLINE/2 -1);
             clearerr(stdin);
             continue;
         }
         //now receive it
-        strcpy(server_announcement, "");
+        server_announcement[0] = '\0'; 
+        strncat(server_announcement, " ", MAXLINE/2 -1);
+            
         system("clear");
         printBoardServer();
         printf("Waiting for opponent...\n");
@@ -455,7 +442,7 @@ int startServer()
     }
 
     //game finished
-    strcpy(server_announcement, "");
+    server_announcement[0] = '\0';
     system("clear");
     printBoardServer();
     printf("GAME IS OVER\n");

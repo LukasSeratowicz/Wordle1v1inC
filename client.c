@@ -13,6 +13,7 @@
 #define MAX_GUESSES 10
 #define WORD_LENGTH 5
 #define NAME_LENGTH 32
+#define MAX_WORDS 20000
 #define SA      struct sockaddr
 
 //colors
@@ -49,6 +50,9 @@ int current_guess = 0;
 bool did_client_win = false;
 
 char client_announcement[MAXLINE / 2];
+
+char read_words_client[MAX_WORDS][WORD_LENGTH + 1];
+int word_count_client= 0;
 
 int receiveMessage(int sockfd, char recvline[MAXLINE + 1]) {
     int n;
@@ -130,7 +134,7 @@ void printBoardClient() {
         }
     }
     printf("+===============+\n");
-    printf("%s",client_announcement);
+    printf("%s\n",client_announcement);
 }
 
 bool checkGuessClient(char* guess) {
@@ -149,20 +153,27 @@ bool checkGuessClient(char* guess) {
     }
 }
 
-bool isInWordListClient(char word[], char **words, int wordCount) {
-    word[strcspn(word, "\r\n")] = 0;
-    for (int i = 0; i < wordCount; i++) {
-        if (strncmp(word, words[i], WORD_LENGTH) == 0 && strlen(words[i]) == WORD_LENGTH) {
+void clearInputBufferClient() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) { }
+}
+
+void initializeWordListClient(char **words, int count) {
+    word_count_client= count < MAX_WORDS ? count : MAX_WORDS;
+    for (int i = 0; i < word_count_client ; i++) {
+        strncpy(read_words_client [i], words[i], WORD_LENGTH);
+        read_words_client[i][WORD_LENGTH] = '\0';
+    }
+}
+bool isWordInGlobalListClient(char word[]) {
+    for (int i = 0; i < word_count_client; i++) {
+        if (strncmp(word, read_words_client[i], WORD_LENGTH) == 0) {
             return true;
         }
     }
     return false;
 }
 
-void clearInputBufferClient() {
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF) { }
-}
 
 int startClient(char **words, int wordCount)
 {
@@ -313,7 +324,11 @@ int startClient(char **words, int wordCount)
         printf("Failed to receive message.\n");
     }
 
-    strcpy(client_announcement, "");
+    client_announcement[0] = '\0';
+    strncat(client_announcement, " ", MAXLINE/2 -1);
+    //printf("server_announcement: %s\n",client_announcement);
+
+
     bool is_correct = checkGuessClient(enemy_guess);
     if(is_correct){
         system("clear");
@@ -331,7 +346,8 @@ int startClient(char **words, int wordCount)
         system("clear");
         printBoardClient();
         printf("Enter your guess (max %d characters): ", WORD_LENGTH);
-        if (fgets(my_guess, sizeof(my_guess), stdin) != NULL) {
+        if (scanf("%s", my_guess)) {
+        //if (fgets(my_guess, sizeof(my_guess), stdin) != NULL) {
             
             size_t len = strlen(my_guess);
             if (len > 0 && my_guess[len - 1] == '\n') {
@@ -340,21 +356,22 @@ int startClient(char **words, int wordCount)
             }
 
             if (len == 0) {
-                strcpy(client_announcement, "");
                 continue;
             }
 
             if (len != WORD_LENGTH) {
                 printf("Invalid word length. Please try again.\n");
-                strcpy(client_announcement, "Invalid word length. Please try again.\n");
+                client_announcement[0] = '\0'; 
+                strncat(client_announcement, "Invalid word length. Please try again.", MAXLINE/2 -1);
                 continue;
             }
 
-            // if (!isInWordListClient(my_guess, words, wordCount)) {
-            //     printf("The guessed word is not in the word list.\n");
-            //     strcpy(client_announcement, "The guessed word is not in the word list.\n");
-            //     continue;
-            // }
+            if (!isWordInGlobalListClient(my_guess)) {
+                printf("The guessed word is not in the word list.\n");
+                client_announcement[0] = '\0'; 
+                strncat(client_announcement, "The guessed word is not in the word list.", MAXLINE/2 -1);
+                continue;
+            }
 
             strcpy(message, "guess|");
             strcat(message, my_guess);
@@ -369,12 +386,14 @@ int startClient(char **words, int wordCount)
 
         } else {
             printf("Error reading input. Please try again.\n");
-            strcpy(client_announcement, "Error reading input. Please try again.\n");
+            client_announcement[0] = '\0'; 
+            strncat(client_announcement, "Error reading input. Please try again.", MAXLINE/2 -1);
             clearerr(stdin);
             continue;
         }
         //now receive it
-        strcpy(client_announcement, "");
+        client_announcement[0] = '\0'; 
+        strncat(client_announcement, " ", MAXLINE/2 -1);
         system("clear");
         printBoardClient();
         printf("Waiting for opponent...\n");
